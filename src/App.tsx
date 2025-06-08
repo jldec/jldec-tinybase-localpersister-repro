@@ -1,55 +1,46 @@
-import { StrictMode } from 'react';
-import { createStore } from 'tinybase';
-import { Provider, useCreateStore } from 'tinybase/ui-react';
+import { createMergeableStore } from 'tinybase'
+import { createLocalPersister } from 'tinybase/persisters/persister-browser'
 import {
-  SortedTableInHtmlTable,
-  ValuesInHtmlTable,
-} from 'tinybase/ui-react-dom';
-import { Inspector } from 'tinybase/ui-react-inspector';
-import { Buttons } from './Buttons';
+  useCreatePersister,
+  useCreateMergeableStore,
+  useTable,
+} from 'tinybase/ui-react'
 
 export const App = () => {
-  const store = useCreateStore(() => {
-    // Create the TinyBase Store and initialize the Store's data
-    return createStore()
-      .setValue('counter', 0)
-      .setRow('pets', '0', { name: 'fido', species: 'dog' })
-      .setTable('species', {
-        dog: { price: 5 },
-        cat: { price: 4 },
-        fish: { price: 2 },
-        worm: { price: 1 },
-        parrot: { price: 3 },
-      });
-  });
+  const store = useCreateMergeableStore(createMergeableStore)
+
+  useCreatePersister(
+    store,
+    (store) =>
+      createLocalPersister(store, 'jldec-tinybase-localpersister-repro'),
+    [],
+    async (persister) => {
+      await persister.startAutoLoad()
+      await persister.startAutoSave()
+    }
+  )
+
+  const messages = useTable('messages', store)
+
+  function addMessage(e: React.FormEvent<HTMLButtonElement>) {
+    e.preventDefault()
+    store.addRow('messages', { message: 'Hello world ' + Date.now() })
+  }
+
+  // Reset the messages table to a single message
+  // FYI - I'm not sure why store.setTable('messages', {}) does nothing
+  async function resetMessages(e: React.FormEvent<HTMLButtonElement>) {
+    e.preventDefault()
+    store.setTable('messages', {
+      0: { message: 'Reset' },
+    })
+  }
 
   return (
-    <StrictMode>
-      <Provider store={store}>
-        <header>
-          <h1>
-            <img src='/favicon.svg' />
-            TinyBase & React
-          </h1>
-        </header>
-        <Buttons />
-        <div>
-          <h2>Values</h2>
-          <ValuesInHtmlTable />
-        </div>
-        <div>
-          <h2>Pets Table</h2>
-          <SortedTableInHtmlTable
-            tableId='pets'
-            cellId='name'
-            limit={5}
-            sortOnClick={true}
-            className='sortedTable'
-            paginator={true}
-          />
-        </div>
-        <Inspector />
-      </Provider>
-    </StrictMode>
-  );
-};
+    <>
+      <button onClick={addMessage}>Add Message</button>{' '}
+      <button onClick={resetMessages}>Reset</button>
+      <pre>{JSON.stringify(messages, null, 2)}</pre>
+    </>
+  )
+}
